@@ -1,0 +1,13 @@
+.git
+.github
+.gitignore
+.env
+.pytest_cache
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+README.md
+.python-version
+data/  # 数据通过DVC管理，不打包进镜像

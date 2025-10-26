@@ -1,0 +1,30 @@
+stages:
+  process_data:
+    cmd: python main.py --process-data
+    deps:
+      - src/data_processor.py
+      - data/raw
+    outs:
+      - data/processed
+
+  extract_features:
+    cmd: python main.py --extract-features
+    deps:
+      - src/feature_extractor.py
+      - data/processed
+    outs:
+      - data/processed/glcm_features.csv
+
+  train_model:
+    cmd: python main.py --train-model
+    deps:
+      - src/model_trainer.py
+      - data/processed/glcm_features.csv
+    params:
+      - knn_neighbors
+      - random_state
+    metrics:
+      - models/accuracy.json:
+          cache: false
+    outs:
+      - models
