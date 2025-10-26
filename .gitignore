@@ -36,7 +36,9 @@ wheels/
 Thumbs.db
 
 # Data and models
-data/
+data/raw/
+data/processed/ 
+data/features/
 models/
 mlruns/
 
