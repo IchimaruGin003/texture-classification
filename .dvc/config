@@ -1,0 +1,6 @@
+[core]
+    remote = myazure
+['remote "myazure"']
+    url = azure://dvc
+    account_name = devopschinastorage
+    sas_token = sp=racwdli&st=2025-10-23T02:26:49Z&se=2025-10-29T11:41:49Z&skoid=66c60a3e-723f-4c4e-b9d2-c2a8e733c11e&skid=413600cf-bd4e-4c7c-8a61-69e73cddf731&skt=2025-10-23T02:26:49Z&ske=2025-10-29T11:41:49Z&sks=b&skv=2024-11-04&sip=0.0.0.0.0&sv=2024-11-04&sr=c&sig=kGkVxbfmJXWq67XHMS%2BQe4v%2Fjmk2Lf%2FRtf3vftYP3jU%3D

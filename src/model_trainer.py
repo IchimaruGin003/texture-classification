@@ -11,7 +11,8 @@ from sklearn.inspection import permutation_importance
 import logging
 from typing import Tuple, Dict, Any
 import joblib
-from .utils import settings
+import json
+from .utils import settings, get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -22,9 +23,11 @@ class TextureModelTrainer:
         self.knn_neighbors = settings.knn_neighbors
         self.random_state = settings.random_state
         self.model_save_path = settings.model_save_path
+        self.metrics_path = "metrics"
         
-        # 确保模型保存目录存在
+        # 确保模型保存目录和指标目录存在
         os.makedirs(self.model_save_path, exist_ok=True)
+        os.makedirs(self.metrics_path, exist_ok=True)
     
     def prepare_data(self, features_df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """准备训练和测试数据"""
@@ -75,6 +78,22 @@ class TextureModelTrainer:
             'predictions': y_pred
         }
     
+    def save_accuracy_metric(self, accuracy: float):
+        """保存准确率指标到metrics目录"""
+        accuracy_data = {
+            "accuracy": accuracy,
+            "model": "KNN",
+            "k_neighbors": self.knn_neighbors,
+            "timestamp": pd.Timestamp.now().isoformat()
+        }
+        
+        accuracy_file = os.path.join(self.metrics_path, "accuracy.json")
+        with open(accuracy_file, 'w') as f:
+            json.dump(accuracy_data, f, indent=2)
+        
+        logger.info(f"准确率指标保存到: {accuracy_file}")
+        return accuracy_file
+    
     def feature_importance_analysis(self, model: KNeighborsClassifier, scaler: StandardScaler,
                                   X_test: np.ndarray, y_test: np.ndarray, feature_names: list) -> pd.DataFrame:
         """特征重要性分析"""
@@ -124,72 +143,6 @@ class TextureModelTrainer:
         
         return model_path, scaler_path
     
-    def train_and_evaluate_with_mlflow(self, features_df: pd.DataFrame, run_name: str = None):
-        """使用MLflow进行训练和评估"""
-        # 设置MLflow
-        mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
-        mlflow.set_experiment(settings.mlflow_experiment_name)
-        
-        with mlflow.start_run(run_name=run_name):
-            # 记录参数
-            mlflow.log_param("knn_neighbors", self.knn_neighbors)
-            mlflow.log_param("random_state", self.random_state)
-            mlflow.log_param("feature_count", 4)  # 4个GLCM特征
-            mlflow.log_param("dataset", "Brodatz_Texture")
-            
-            # 准备数据
-            X_train, X_test, y_train, y_test = self.prepare_data(features_df)
-            
-            # 训练模型
-            model, scaler = self.train_model(X_train, y_train)
-            
-            # 评估模型
-            evaluation = self.evaluate_model(model, scaler, X_test, y_test)
-            accuracy = evaluation['accuracy']
-            
-            # 记录指标
-            mlflow.log_metric("accuracy", accuracy)
-            
-            # 特征重要性分析
-            feature_names = ['energy', 'contrast', 'correlation', 'entropy']
-            importance_df = self.feature_importance_analysis(model, scaler, X_test, y_test, feature_names)
-            
-            # 记录特征重要性
-            for _, row in importance_df.iterrows():
-                mlflow.log_metric(f"importance_{row['feature']}", row['importance'])
-            
-            # 保存特征重要性图
-            importance_plot_path = os.path.join(self.model_save_path, "feature_importance.png")
-            self.plot_feature_importance(importance_df, importance_plot_path)
-            mlflow.log_artifact(importance_plot_path)
-            
-            # 保存模型
-            model_path, scaler_path = self.save_model(model, scaler, accuracy)
-            
-            # 记录模型
-            mlflow.sklearn.log_model(model, "model")
-            mlflow.log_artifact(model_path)
-            mlflow.log_artifact(scaler_path)
-            
-            # 记录混淆矩阵
-            cm_path = os.path.join(self.model_save_path, "confusion_matrix.png")
-            self.plot_confusion_matrix(evaluation['confusion_matrix'], 
-                                     classes=np.unique(y_test), 
-                                     save_path=cm_path)
-            mlflow.log_artifact(cm_path)
-            
-            logger.info(f"MLflow实验记录完成，准确率: {accuracy:.4f}")
-            
-            return {
-                'model': model,
-                'scaler': scaler,
-                'accuracy': accuracy,
-                'feature_importance': importance_df,
-                'evaluation': evaluation,
-                'model_path': model_path,
-                'scaler_path': scaler_path
-            }
-    
     def plot_confusion_matrix(self, cm: np.ndarray, classes: list, save_path: str = None):
         """绘制混淆矩阵"""
         plt.figure(figsize=(8, 6))
@@ -215,3 +168,74 @@ class TextureModelTrainer:
             plt.savefig(save_path, bbox_inches='tight', dpi=300)
         
         plt.close()
+    
+    def train_and_evaluate_with_mlflow(self, features_df: pd.DataFrame, run_name: str = None):
+        """使用MLflow进行训练和评估"""
+        # 设置MLflow
+        mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+        mlflow.set_experiment(settings.mlflow_experiment_name)
+        
+        with mlflow.start_run(run_name=run_name):
+            # 记录参数
+            mlflow.log_param("knn_neighbors", self.knn_neighbors)
+            mlflow.log_param("random_state", self.random_state)
+            mlflow.log_param("feature_count", 4)  # 4个GLCM特征
+            mlflow.log_param("dataset", "Brodatz_Texture")
+            
+            # 准备数据
+            X_train, X_test, y_train, y_test = self.prepare_data(features_df)
+            
+            # 训练模型
+            model, scaler = self.train_model(X_train, y_train)
+            
+            # 评估模型
+            evaluation = self.evaluate_model(model, scaler, X_test, y_test)
+            accuracy = evaluation['accuracy']
+            
+            # 保存准确率指标到metrics目录
+            accuracy_file = self.save_accuracy_metric(accuracy)
+            
+            # 记录指标
+            mlflow.log_metric("accuracy", accuracy)
+            mlflow.log_artifact(accuracy_file)  # 将accuracy.json记录为artifact
+            
+            # 特征重要性分析
+            feature_names = ['energy', 'contrast', 'correlation', 'entropy']
+            importance_df = self.feature_importance_analysis(model, scaler, X_test, y_test, feature_names)
+            
+            # 记录特征重要性
+            for _, row in importance_df.iterrows():
+                mlflow.log_metric(f"importance_{row['feature']}", row['importance'])
+            
+            # 保存特征重要性图
+            importance_plot_path = os.path.join(self.metrics_path, "feature_importance.png")
+            self.plot_feature_importance(importance_df, importance_plot_path)
+            mlflow.log_artifact(importance_plot_path)
+            
+            # 保存模型
+            model_path, scaler_path = self.save_model(model, scaler, accuracy)
+            
+            # 记录模型
+            mlflow.sklearn.log_model(model, "model")
+            mlflow.log_artifact(model_path)
+            mlflow.log_artifact(scaler_path)
+            
+            # 记录混淆矩阵
+            cm_path = os.path.join(self.metrics_path, "confusion_matrix.png")
+            self.plot_confusion_matrix(evaluation['confusion_matrix'], 
+                                     classes=np.unique(y_test), 
+                                     save_path=cm_path)
+            mlflow.log_artifact(cm_path)
+            
+            logger.info(f"MLflow实验记录完成，准确率: {accuracy:.4f}")
+            
+            return {
+                'model': model,
+                'scaler': scaler,
+                'accuracy': accuracy,
+                'feature_importance': importance_df,
+                'evaluation': evaluation,
+                'model_path': model_path,
+                'scaler_path': scaler_path,
+                'accuracy_file': accuracy_file
+            }

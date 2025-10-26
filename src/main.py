@@ -70,8 +70,10 @@ def extract_features():
         logger.error("没有提取到任何特征")
         return None
     
-    # 保存特征到CSV
-    features_csv_path = os.path.join(settings.processed_data_path, "glcm_features.csv")
+    # 保存特征到CSV - 确保路径是 data/features/
+    features_dir = "data/features"
+    os.makedirs(features_dir, exist_ok=True)
+    features_csv_path = os.path.join(features_dir, "glcm_features.csv")
     features_df.to_csv(features_csv_path, index=False)
     logger.info(f"特征保存到: {features_csv_path}")
     

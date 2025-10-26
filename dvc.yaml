@@ -13,18 +13,18 @@ stages:
       - src/feature_extractor.py
       - data/processed
     outs:
-      - data/processed/glcm_features.csv
+      - data/features/glcm_features.csv
 
   train_model:
     cmd: python main.py --train-model
     deps:
       - src/model_trainer.py
-      - data/processed/glcm_features.csv
+      - data/features/glcm_features.csv
     params:
       - knn_neighbors
       - random_state
     metrics:
-      - models/accuracy.json:
+      - metrics/accuracy.json:
           cache: false
     outs:
       - models
